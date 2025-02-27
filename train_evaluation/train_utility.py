@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 
 
 def retrieve_indices():
-    if os.path.exists('indices/indices.pkl'):
-        indices_pickle = open('indices/indices.pkl', "rb")
+    if os.path.exists('../indices/indices.pkl'):
+        indices_pickle = open('../indices/indices.pkl', "rb")
         indices_pickle = pickle.load(indices_pickle)
         train_indices = indices_pickle["train"]
         val_indices = indices_pickle["val"]
@@ -23,7 +23,7 @@ def retrieve_indices():
         val_indices = perm[int(data_size * train_ratio):int(data_size * (val_ratio + train_ratio))]
         test_indices = perm[int(data_size * (val_ratio + train_ratio)):]
         indices_pickle = {"train": train_indices, "val": val_indices, "test": test_indices}
-        with open('indices/indices.pkl', 'wb') as f:
+        with open('../indices/indices.pkl', 'wb') as f:
             pickle.dump(indices_pickle, f)
     return train_indices, val_indices, test_indices
 

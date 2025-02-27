@@ -34,7 +34,7 @@ def get_similarity_function(path):
 def start_train(args):
     approach_name = f'{args.simmodel}_margin_test'
     output_feature_size = args.output_feature_size
-    similarity_metric = get_similarity_function(f'../scenes_relevances/relevance_slm_normalized_{args.simmodel}.pkl')
+    similarity_metric = get_similarity_function(f'../scenes_relevances/relevance_{args.simmodel}_3dfront_normalized.pkl')
     is_txt_similarity = True
     relevance_info = similarity_metric if is_txt_similarity else pickle.load(open('../scenes_relevances/relevance.pkl', 'rb'))
     # relevance_info = pickle.load(relevance_info)
