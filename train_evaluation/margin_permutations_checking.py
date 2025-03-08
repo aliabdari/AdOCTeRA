@@ -8,6 +8,8 @@ import train_utility
 from Data_utils import DescriptionScene
 from tqdm import tqdm
 import argparse
+import numpy
+import random
 
 
 def collate_fn(data):
@@ -31,12 +33,35 @@ def get_similarity_function(path):
     return pickle.load(open(path, 'rb'))
 
 
+def set_seed(seed: int = 50):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
+def set_torch_configs():
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.use_deterministic_algorithms(True)
+    # torch.set_float32_matmul_precision("high")
+
+
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2 ** 32
+    numpy.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
 def start_train(args):
-    approach_name = f'{args.simmodel}_margin_test'
+    set_seed()
+    set_torch_configs()
+    approach_name = f'distilroberta_margin_test'
     output_feature_size = args.output_feature_size
-    similarity_metric = get_similarity_function(f'../scenes_relevances/relevance_{args.simmodel}_3dfront_normalized.pkl')
-    is_txt_similarity = True
-    relevance_info = similarity_metric if is_txt_similarity else pickle.load(open('../scenes_relevances/relevance.pkl', 'rb'))
+    similarity_metric = get_similarity_function(
+        f'../scenes_relevances/relevance_distilroberta_3dfront_normalized.pkl')
+    is_txt_similarity = True if args.txt_sim else False
+    relevance_info = similarity_metric if is_txt_similarity else pickle.load(
+        open('../scenes_relevances/relevance.pkl', 'rb'))
     # relevance_info = pickle.load(relevance_info)
 
     margins = dict()
@@ -44,7 +69,7 @@ def start_train(args):
     margins['margin_mid'] = args.margin_m
     margins['margin_high'] = args.margin_h
     thresh = (args.thresh_l, args.thresh_u)
-    is_customized_margin = True
+    is_customized_margin = True if args.custom_margin else False
 
     is_bidirectional = args.is_bidirectional
     model_desc_pov = GRUNet(hidden_size=output_feature_size, num_features=512, is_bidirectional=is_bidirectional)
@@ -66,9 +91,16 @@ def start_train(args):
     train_subset = Subset(dataset, train_indices.tolist())
     val_subset = Subset(dataset, val_indices.tolist())
     test_subset = Subset(dataset, test_indices.tolist())
-    train_loader = DataLoader(train_subset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_subset, batch_size=batch_size, collate_fn=collate_fn, shuffle=False, num_workers=4)
-    test_loader = DataLoader(test_subset, batch_size=batch_size, collate_fn=collate_fn, shuffle=False, num_workers=4)
+
+    g = torch.Generator()
+    g.manual_seed(0)
+
+    train_loader = DataLoader(train_subset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True, num_workers=4,
+                              worker_init_fn=seed_worker, generator=g)
+    val_loader = DataLoader(val_subset, batch_size=batch_size, collate_fn=collate_fn, shuffle=False, num_workers=4,
+                            worker_init_fn=seed_worker, generator=g)
+    test_loader = DataLoader(test_subset, batch_size=batch_size, collate_fn=collate_fn, shuffle=False, num_workers=4,
+                             worker_init_fn=seed_worker, generator=g)
 
     '''Train Procedure'''
     params = list(model_desc_pov.parameters()) + list(model_pov.parameters())
@@ -104,7 +136,7 @@ def start_train(args):
             multiplication_dp = train_utility.cosine_sim(output_desc_pov, output_pov)
             if is_customized_margin:
                 margin_tensor = train_utility.get_margin_tensor(indexes, relevance_info, margins, thresholds=thresh,
-                                                                sent_similarity=True)
+                                                                sent_similarity=is_txt_similarity)
                 loss_contrastive = cont_loss.calculate_loss(multiplication_dp, margin_tensor=margin_tensor)
             else:
                 loss_contrastive = cont_loss.calculate_loss(multiplication_dp)
@@ -144,7 +176,7 @@ def start_train(args):
                 if is_customized_margin:
                     margin_tensor = train_utility.get_margin_tensor(indexes=indexes, relevance_info=relevance_info,
                                                                     margins=margins, thresholds=thresh,
-                                                                    sent_similarity=True)
+                                                                    sent_similarity=is_txt_similarity)
                     loss_contrastive = cont_loss.calculate_loss(multiplication_dp, margin_tensor=margin_tensor)
                 else:
                     loss_contrastive = cont_loss.calculate_loss(multiplication_dp)
@@ -198,8 +230,8 @@ def start_train(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train Specs')
-    parser.add_argument('-simmodel', type=str, default='distilroberta', required=True,
-                    help='distilroberta, MiniLM, gte-large')
+    parser.add_argument('-custom_margin', action='store_true', help='set or not set for using the customized margins')
+    parser.add_argument('-txt_sim', action='store_true', help='set if using the sentence similarity or not set if using rooms structure similarity')
     parser.add_argument("--output_feature_size", type=int, default=256, required=False,
                         help='The size of the output feature')
     parser.add_argument("--is_bidirectional", type=bool, default=True, required=False,

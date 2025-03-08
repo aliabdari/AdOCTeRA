@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 
 class DescriptionScene(Dataset):
-    def __init__(self, data_description_path, mem, data_scene_path, customized_margin=False):
+    def __init__(self, data_description_path, mem, data_scene_path, customized_margin=False, verbose=True):
         self.description_path = data_description_path
         self.data_pov_path = data_scene_path
         available_data = open('data/available_data.txt', 'r')
@@ -14,9 +14,10 @@ class DescriptionScene(Dataset):
         self.mem = mem
         self.margin_needed = customized_margin
         if self.mem:
-            print('Data Loading ...')
+            if verbose:
+                print('Data Loading ...')
 
-            print('Loading descriptions ...')
+                print('Loading descriptions ...')
             if os.path.exists('./data/descs.pkl'):
                 pickle_file = open('./data/descs.pkl', 'rb')
                 self.descs = pickle.load(pickle_file)
@@ -28,8 +29,8 @@ class DescriptionScene(Dataset):
                 pickle_file = open('./data/descs.pkl', 'wb')
                 pickle.dump(self.descs, pickle_file)
                 pickle_file.close()
-
-            print('Loading POVs ...')
+            if verbose:
+                print('Loading POVs ...')
             if self.data_pov_path is not None:
                 if os.path.exists('./data/pov_images.pkl'):
                     pickle_file = open('./data/pov_images.pkl', 'rb')

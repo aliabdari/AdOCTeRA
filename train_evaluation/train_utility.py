@@ -46,7 +46,7 @@ def create_rank(result, entire_descriptor, desired_output_index):
     return position[0].item(), sorted_indices
 
 
-def evaluate(output_description, output_scene, section):
+def evaluate(output_description, output_scene, section, is_print=True):
     avg_rank_scene = 0
     ranks_scene = []
     avg_rank_description = 0
@@ -99,9 +99,10 @@ def evaluate(output_description, output_scene, section):
                    ]:
         sc_out += f"{mn}: {mv:.4f}   "
 
-    print(section + " data: ")
-    print("Scenes ranking: " + ds_out)
-    print("Descriptions ranking: " + sc_out)
+    if is_print:
+        print(section + " data: ")
+        print("Scenes ranking: " + ds_out)
+        print("Descriptions ranking: " + sc_out)
     if section == "test" and len(ndcg_10_list) > 0:
         avg_ndcg_10_entire = 100 * sum(ndcg_10_list) / len(ndcg_10_list)
         avg_ndcg_entire = 100 * sum(ndcg_entire_list) / len(ndcg_entire_list)
@@ -132,7 +133,7 @@ def save_best_model(model_name, *args):
 def load_best_model(model_name):
     model_path = "models"
     model_path = model_path + os.sep + model_name + '.pt'
-    check_point = torch.load(model_path)
+    check_point = torch.load(model_path, weights_only=True)
     bm_list = [check_point[bm] for bm in check_point.keys()]
     return bm_list
 
@@ -160,6 +161,25 @@ def get_margin_tensor(indexes, relevance_info, margins, thresholds=None, sent_si
                 margin_tensors[i, j] = margin_tensors[j, i] = low_
 
     return margin_tensors
+
+
+def contrastive_loss(pairwise_distances, margin=0.25):
+    batch_size = pairwise_distances.shape[0]
+    diag = pairwise_distances.diag().view(batch_size, 1)
+    pos_masks = torch.eye(batch_size).bool().to(pairwise_distances.device)
+    d1 = diag.expand_as(pairwise_distances)
+    cost_s = (margin + pairwise_distances - d1).clamp(min=0)
+    cost_s = cost_s.masked_fill(pos_masks, 0)
+    cost_s = cost_s / (batch_size * (batch_size - 1))
+    cost_s = cost_s.sum()
+
+    d2 = diag.t().expand_as(pairwise_distances)
+    cost_d = (margin + pairwise_distances - d2).clamp(min=0)
+    cost_d = cost_d.masked_fill(pos_masks, 0)
+    cost_d = cost_d / (batch_size * (batch_size - 1))
+    cost_d = cost_d.sum()
+
+    return (cost_s + cost_d) / 2
 
 
 class LossContrastive:
