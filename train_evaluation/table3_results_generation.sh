@@ -11,6 +11,8 @@ fi
 output_file="generated_results/results_table_3.csv"
 echo "Method,R1,R5,R10,MedR" > $output_file
 
+echo "Generating Results of the Table 3 of the Paper ... "
+echo
 
 echo "Running test of the baseline ..."
 result=$(CUBLAS_WORKSPACE_CONFIG=:16:8 python repro_baseline.py)
@@ -23,8 +25,6 @@ r10=$(echo $result | cut -d',' -f3)
 medr=$(echo $result | cut -d',' -f7)
 echo "baseline,$r1,$r5,$r10,$medr" >> $output_file
 
-echo "Generating Results of the Table 3 of the Paper ... "
-echo
 echo "Running test S2 using Structural Similarity..."
 result=$(CUBLAS_WORKSPACE_CONFIG=:16:8 python repro_run.py)
 echo "Results of Three Run:"
